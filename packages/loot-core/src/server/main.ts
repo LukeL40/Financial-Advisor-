@@ -21,6 +21,7 @@ import * as encryption from './encryption';
 import { app as encryptionApp } from './encryption/app';
 import { withErrorCode } from './errors';
 import { app as filtersApp } from './filters/app';
+import { app as financialBrainApp } from './financial-brain/app';
 import { app as forecastApp } from './forecast/app';
 import { app as formulasApp } from './formulas/app';
 import { app } from './main-app';
@@ -150,6 +151,7 @@ app.combine(
   budgetFilesApp,
   encryptionApp,
   tagsApp,
+  financialBrainApp,
 );
 
 export function getDefaultDocumentDir() {

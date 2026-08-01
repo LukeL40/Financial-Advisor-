@@ -28,6 +28,7 @@ import { CommandBar } from './CommandBar';
 import { ContextMenu } from './ContextMenu';
 import { EnableBankingCallback } from './EnableBankingCallback';
 import { FeatureErrorFallback } from './FeatureErrorFallback';
+import { FinancialBrainPage } from './financial-brain/FinancialBrainPage';
 import { GlobalKeys } from './GlobalKeys';
 import { MobileBankSyncAccountEditPage } from './mobile/banksync/MobileBankSyncAccountEditPage';
 import { MobileNavTabs } from './mobile/MobileNavTabs';
@@ -372,6 +373,17 @@ export function FinancesApp() {
                   />
                   <Route path="/tags" element={<ManageTagsPage />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route
+                    path="/financial-brain"
+                    element={
+                      <ErrorBoundary
+                        FallbackComponent={FeatureErrorFallback}
+                        resetKeys={[location.pathname]}
+                      >
+                        <FinancialBrainPage />
+                      </ErrorBoundary>
+                    }
+                  />
 
                   <Route
                     path="/gocardless/link"

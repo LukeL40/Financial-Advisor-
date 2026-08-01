@@ -7,6 +7,7 @@ import {
   SvgCheveronRight,
   SvgCog,
   SvgCreditCard,
+  SvgLightBulb,
   SvgReports,
   SvgStoreFront,
   SvgTag,
@@ -51,6 +52,11 @@ export function PrimaryButtons() {
       <Item title={t('Budget')} Icon={SvgWallet} to="/budget" />
       <Item title={t('Reports')} Icon={SvgReports} to="/reports" />
       <Item title={t('Schedules')} Icon={SvgCalendar3} to="/schedules" />
+      <Item
+        title={t('Financial Brain')}
+        Icon={SvgLightBulb}
+        to="/financial-brain"
+      />
       <Item
         title={t('More')}
         Icon={isOpen ? SvgCheveronDown : SvgCheveronRight}
