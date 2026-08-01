@@ -1,9 +1,7 @@
 import { aqlQuery } from '#server/aql';
 import * as db from '#server/db';
-import {
-  getAccounts as getAccountsWithComputedBalance,
-  type AccountWithComputedBalance,
-} from '#server/forecast/forecast-accounts';
+import { getAccounts as getAccountsWithComputedBalance } from '#server/forecast/forecast-accounts';
+import type { AccountWithComputedBalance } from '#server/forecast/forecast-accounts';
 import {
   FORECAST_UNASSIGNED_ACCOUNT_ID,
   getFutureOccurrenceDates,
@@ -180,7 +178,9 @@ async function getScheduleOutflowByHorizon({
   liquidOrCheckingAccountIds: Set<string>;
 }) {
   const schedules = await getNormalizedSchedules();
-  const endDate = monthUtils.parseDate(monthUtils.addDays(startDate, horizonDays));
+  const endDate = monthUtils.parseDate(
+    monthUtils.addDays(startDate, horizonDays),
+  );
 
   const scheduleIds = new Set<string>();
   let nearTermRequiredCash = 0;
@@ -253,9 +253,8 @@ export async function buildFinancialSnapshot(
   );
 
   const eligibleAccountIds = eligibleAccounts.map(account => account.id);
-  const accountsWithBalances = await getAccountsWithComputedBalance(
-    eligibleAccountIds,
-  );
+  const accountsWithBalances =
+    await getAccountsWithComputedBalance(eligibleAccountIds);
   const accountsById = new Map(
     accountsWithBalances.map(account => [account.id, account]),
   );
@@ -303,22 +302,27 @@ export async function buildFinancialSnapshot(
     checkingAccountIds,
     'checkingBalance',
   );
-  const liquidCash = sumAccountBalances(accountsById, liquidAccountIds, 'liquidCash');
+  const liquidCash = sumAccountBalances(
+    accountsById,
+    liquidAccountIds,
+    'liquidCash',
+  );
 
   const liquidOrCheckingAccountIds = new Set([
     ...checkingAccountIds,
     ...liquidAccountIds,
   ]);
 
-  const { nearTermRequiredCash, scheduleIds } = await getScheduleOutflowByHorizon({
-    startDate: asOfDate,
-    horizonDays: nearTermHorizonDays,
-    liquidOrCheckingAccountIds,
-  });
+  const { nearTermRequiredCash, scheduleIds } =
+    await getScheduleOutflowByHorizon({
+      startDate: asOfDate,
+      horizonDays: nearTermHorizonDays,
+      liquidOrCheckingAccountIds,
+    });
 
-  const emergencyFundAccountIds = dedupeIds(config.emergencyFundAccountIds).filter(
-    accountId => accountsById.has(accountId),
-  );
+  const emergencyFundAccountIds = dedupeIds(
+    config.emergencyFundAccountIds,
+  ).filter(accountId => accountsById.has(accountId));
   const emergencySavings = sumAccountBalances(
     accountsById,
     emergencyFundAccountIds,
@@ -360,11 +364,14 @@ export async function buildFinancialSnapshot(
         .select(['amount', 'date']),
     );
 
-    const totalEssentialOutflow = (data as Array<{ amount: number; date: string }>)
+    const totalEssentialOutflow = (
+      data as Array<{ amount: number; date: string }>
+    )
       .filter(tx => tx.amount < 0)
       .reduce(
         (sum, tx) =>
-          sum + -assertSafeIntegerAmount(tx.amount, 'monthlyEssentialSpend.amount'),
+          sum +
+          -assertSafeIntegerAmount(tx.amount, 'monthlyEssentialSpend.amount'),
         0,
       );
 
@@ -406,7 +413,10 @@ export async function buildFinancialSnapshot(
 
     monthlyBuckets.add(monthBucket(tx.date));
 
-    const amount = assertSafeIntegerAmount(tx.amount, 'monthlyNetIncome.amount');
+    const amount = assertSafeIntegerAmount(
+      tx.amount,
+      'monthlyNetIncome.amount',
+    );
 
     if (isIncomeCategory) {
       totalIncome += amount;

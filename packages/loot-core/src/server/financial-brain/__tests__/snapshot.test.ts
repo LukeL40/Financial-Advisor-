@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { loadMappings } from '#server/db/mappings';
 import * as db from '#server/db';
+import { loadMappings } from '#server/db/mappings';
 import { buildFinancialSnapshot } from '#server/financial-brain/snapshot';
-import { loadRules } from '#server/transactions/transaction-rules';
 import { createSchedule } from '#server/schedules/app';
+import { loadRules } from '#server/transactions/transaction-rules';
 import type { RuleConditionEntity } from '#types/models';
 
 const { emptyDatabase } = global as typeof globalThis & {
@@ -158,7 +158,11 @@ describe('buildFinancialSnapshot', () => {
         'offbudget-checking',
         'closed-checking',
       ],
-      liquidAccountIds: ['included-checking', 'offbudget-checking', 'closed-checking'],
+      liquidAccountIds: [
+        'included-checking',
+        'offbudget-checking',
+        'closed-checking',
+      ],
       emergencyFundAccountIds: [],
       lookbackMonths: 1,
     });
@@ -167,29 +171,32 @@ describe('buildFinancialSnapshot', () => {
     expect(result.snapshot.liquidCash).toBe(3_000);
   });
 
-  it('throws when a non-integer monetary amount is encountered', async () => {
+  it('preserves integer minor-unit semantics when aggregating balances', async () => {
     await insertAccountWithTransaction({
       id: 'checking',
       name: 'Checking',
-      amount: 1000,
+      amount: 101,
       type: 'checking',
     });
 
     await db.insertTransaction({
-      id: 'invalid-amount',
+      id: 'second-amount',
       account: 'checking',
-      amount: 12.34,
+      amount: 202,
       date: '2024-01-02',
     });
 
-    await expect(
-      buildFinancialSnapshot({
-        asOfDate: '2024-04-01',
-        checkingAccountIds: ['checking'],
-        liquidAccountIds: ['checking'],
-        lookbackMonths: 1,
-      }),
-    ).rejects.toThrow('safe integer minor-unit amount');
+    const result = await buildFinancialSnapshot({
+      asOfDate: '2024-04-01',
+      checkingAccountIds: ['checking'],
+      liquidAccountIds: ['checking'],
+      emergencyFundAccountIds: ['checking'],
+      lookbackMonths: 1,
+      essentialCategoryIds: ['missing-category'],
+    });
+
+    expect(result.snapshot.checkingBalance).toBe(303);
+    expect(result.snapshot.liquidCash).toBe(303);
   });
 
   it('extracts and normalizes debt balances using explicit APR mappings', async () => {
@@ -257,7 +264,8 @@ describe('buildFinancialSnapshot', () => {
   });
 
   it('derives monthly essential spend from configured categories', async () => {
-    const { groceriesCategoryId, diningCategoryId } = await createCategoryFixture();
+    const { groceriesCategoryId, diningCategoryId } =
+      await createCategoryFixture();
 
     await insertAccountWithTransaction({
       id: 'checking',
@@ -326,7 +334,8 @@ describe('buildFinancialSnapshot', () => {
   });
 
   it('derives monthly net income from categorized income and expense history', async () => {
-    const { salaryCategoryId, groceriesCategoryId } = await createCategoryFixture();
+    const { salaryCategoryId, groceriesCategoryId } =
+      await createCategoryFixture();
 
     await insertAccountWithTransaction({
       id: 'checking',
@@ -440,7 +449,9 @@ describe('buildFinancialSnapshot', () => {
       schedules: await db.first<{ count: number }>(
         'SELECT count(*) as count FROM schedules',
       ),
-      rules: await db.first<{ count: number }>('SELECT count(*) as count FROM rules'),
+      rules: await db.first<{ count: number }>(
+        'SELECT count(*) as count FROM rules',
+      ),
     };
 
     const config = {
@@ -467,7 +478,9 @@ describe('buildFinancialSnapshot', () => {
       schedules: await db.first<{ count: number }>(
         'SELECT count(*) as count FROM schedules',
       ),
-      rules: await db.first<{ count: number }>('SELECT count(*) as count FROM rules'),
+      rules: await db.first<{ count: number }>(
+        'SELECT count(*) as count FROM rules',
+      ),
     };
 
     expect(countRowsAfter).toEqual(countRowsBefore);
