@@ -19,6 +19,7 @@ AGPL projects may be excellent architecture/reference sources but are not automa
 Role: authoritative application foundation.
 
 Use directly for:
+
 - account and transaction storage;
 - budgeting primitives;
 - SQLite/local-first data model;
@@ -34,6 +35,7 @@ License: AGPL-3.0.
 Maintenance: upstream repository is no longer actively maintained.
 
 High-value areas to study:
+
 - household/net-worth presentation;
 - investment account UX;
 - financial planning flows;
@@ -49,6 +51,7 @@ License: AGPL-3.0.
 Maintenance: actively released in 2026.
 
 High-value areas to study:
+
 - portfolio holdings model;
 - allocation calculations;
 - investment performance and wealth views;
@@ -64,6 +67,7 @@ License: AGPL-3.0.
 Maintenance: actively released in 2026.
 
 High-value areas to study:
+
 - rules engine concepts;
 - recurring transactions;
 - savings-goal concepts;
@@ -81,6 +85,7 @@ Language: Java.
 Maintenance: active releases in 2026.
 
 High-value areas to study:
+
 - performance measurement semantics;
 - cash-flow-aware returns;
 - portfolio/account modeling;
@@ -91,24 +96,24 @@ Default decision: REFERENCE/VALIDATION SOURCE. Direct code reuse is low-fit beca
 
 ## Capability decisions
 
-| Capability | Primary source to examine first | Reuse posture | What remains ours |
-|---|---|---|---|
-| Ledger/accounts/transactions | Actual Budget | Directly reuse existing core | Financial Brain adapters and policy semantics |
-| Budget data | Actual Budget | Directly reuse | Interpretation for advice/forecasting |
-| Next-dollar allocation | Financial Advisor PR #1 | Custom | Policy, priorities, explanations |
-| Net-worth dashboard | Actual + Maybe reference | Reuse Actual data; adapt UX concepts | Our dashboard and decision context |
-| Cash-flow forecasting | Actual schedules/transactions + external permissive libraries if useful; compare Firefly/Maybe behavior | Reuse primitives, do not reinvent date/math plumbing | Forecast policy, uncertainty, alerts |
-| Debt optimization | Search permissive debt/amortization libraries before coding; use Firefly/Maybe as behavior references | Prefer reusable math primitives | Our ranking policy, user constraints, explanation layer |
-| Savings goals | Actual budget primitives + Firefly/Maybe reference | Reuse available data structures where practical | Goal priority and next-dollar integration |
-| Portfolio holdings | Actual accounts + Ghostfolio/Portfolio Performance reference | Reuse/adapt data model carefully | Unified household view and recommendation policy |
-| Portfolio performance | Search permissive calculation libraries; validate against Ghostfolio/Portfolio Performance | Prefer library/formula reuse | Presentation and household context |
-| Rebalancing | Search permissive portfolio-allocation libraries first; compare Ghostfolio | Prefer reusable algorithms | Guardrails, target policy, explanations |
-| Retirement modeling | Search permissive retirement/Monte Carlo libraries first; study Maybe flows | Prefer reusable simulation/math | User assumptions, policies, scenario UX |
-| Market data | Use established provider APIs/adapters; do not build a market-data stack from scratch | External service/library | Provider selection, caching/privacy controls |
-| Transaction classification | Search permissive rules/ML classification components; study Actual/Firefly rules | Reuse rule infrastructure | Personalized classifications and confidence policy |
-| AI financial chat | Reuse application data/query layer; study Maybe interaction design | Build thin grounded assistant layer | Financial Brain tools, guardrails, citations/explanations |
-| Bank connectivity | Actual-supported sync paths / established aggregators | Reuse supported integrations | Consent/approval workflow |
-| Money movement/trading | Regulated provider APIs only, future phase | No homemade execution infrastructure | Approval policy and audit trail |
+| Capability                   | Primary source to examine first                                                                         | Reuse posture                                        | What remains ours                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------- |
+| Ledger/accounts/transactions | Actual Budget                                                                                           | Directly reuse existing core                         | Financial Brain adapters and policy semantics             |
+| Budget data                  | Actual Budget                                                                                           | Directly reuse                                       | Interpretation for advice/forecasting                     |
+| Next-dollar allocation       | Financial Advisor PR #1                                                                                 | Custom                                               | Policy, priorities, explanations                          |
+| Net-worth dashboard          | Actual + Maybe reference                                                                                | Reuse Actual data; adapt UX concepts                 | Our dashboard and decision context                        |
+| Cash-flow forecasting        | Actual schedules/transactions + external permissive libraries if useful; compare Firefly/Maybe behavior | Reuse primitives, do not reinvent date/math plumbing | Forecast policy, uncertainty, alerts                      |
+| Debt optimization            | Search permissive debt/amortization libraries before coding; use Firefly/Maybe as behavior references   | Prefer reusable math primitives                      | Our ranking policy, user constraints, explanation layer   |
+| Savings goals                | Actual budget primitives + Firefly/Maybe reference                                                      | Reuse available data structures where practical      | Goal priority and next-dollar integration                 |
+| Portfolio holdings           | Actual accounts + Ghostfolio/Portfolio Performance reference                                            | Reuse/adapt data model carefully                     | Unified household view and recommendation policy          |
+| Portfolio performance        | Search permissive calculation libraries; validate against Ghostfolio/Portfolio Performance              | Prefer library/formula reuse                         | Presentation and household context                        |
+| Rebalancing                  | Search permissive portfolio-allocation libraries first; compare Ghostfolio                              | Prefer reusable algorithms                           | Guardrails, target policy, explanations                   |
+| Retirement modeling          | Search permissive retirement/Monte Carlo libraries first; study Maybe flows                             | Prefer reusable simulation/math                      | User assumptions, policies, scenario UX                   |
+| Market data                  | Use established provider APIs/adapters; do not build a market-data stack from scratch                   | External service/library                             | Provider selection, caching/privacy controls              |
+| Transaction classification   | Search permissive rules/ML classification components; study Actual/Firefly rules                        | Reuse rule infrastructure                            | Personalized classifications and confidence policy        |
+| AI financial chat            | Reuse application data/query layer; study Maybe interaction design                                      | Build thin grounded assistant layer                  | Financial Brain tools, guardrails, citations/explanations |
+| Bank connectivity            | Actual-supported sync paths / established aggregators                                                   | Reuse supported integrations                         | Consent/approval workflow                                 |
+| Money movement/trading       | Regulated provider APIs only, future phase                                                              | No homemade execution infrastructure                 | Approval policy and audit trail                           |
 
 ## PR #2 deliverable
 
