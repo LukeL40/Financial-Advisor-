@@ -11,16 +11,22 @@ import { FinancialText } from '#components/FinancialText';
 
 type MetricCardProps = {
   label: string;
-  amountMinorUnits: number;
+  amountMinorUnits?: number;
   subtitle?: string;
   amountStyle?: CSSProperties;
+  /** When true the metric value is unknown; renders "—" instead of a dollar amount. */
+  unavailable?: boolean;
+  /** Tooltip shown beneath the label when unavailable is true. */
+  unavailableReason?: string;
 };
 
 export function MetricCard({
   label,
-  amountMinorUnits,
+  amountMinorUnits = 0,
   subtitle,
   amountStyle,
+  unavailable,
+  unavailableReason,
 }: MetricCardProps) {
   return (
     <Card
@@ -43,17 +49,36 @@ export function MetricCard({
         >
           {label}
         </Text>
-        <FinancialText
-          style={{
-            fontSize: 24,
-            fontWeight: 700,
-            color: theme.pageText,
-            ...amountStyle,
-          }}
-        >
-          {integerToCurrency(amountMinorUnits)}
-        </FinancialText>
-        {subtitle && (
+        {unavailable ? (
+          <>
+            <Text
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                color: theme.pageTextSubdued,
+              }}
+            >
+              —
+            </Text>
+            {unavailableReason && (
+              <Text style={{ fontSize: 12, color: theme.warningText }}>
+                {unavailableReason}
+              </Text>
+            )}
+          </>
+        ) : (
+          <FinancialText
+            style={{
+              fontSize: 24,
+              fontWeight: 700,
+              color: theme.pageText,
+              ...amountStyle,
+            }}
+          >
+            {integerToCurrency(amountMinorUnits)}
+          </FinancialText>
+        )}
+        {subtitle && !unavailable && (
           <Text style={{ fontSize: 12, color: theme.pageTextLight }}>
             {subtitle}
           </Text>
