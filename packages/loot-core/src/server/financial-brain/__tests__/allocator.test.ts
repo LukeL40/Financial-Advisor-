@@ -35,7 +35,7 @@ function buildPolicy(
 }
 
 describe('allocateFinancialRecommendations', () => {
-  it('returns no recommendations for zero deployable cash', () => {
+  it('returns no recommendations for zero external deployable cash', () => {
     const result = allocateFinancialRecommendations({
       snapshot: buildSnapshot(),
       policy: buildPolicy(),
@@ -69,7 +69,7 @@ describe('allocateFinancialRecommendations', () => {
     ]);
   });
 
-  it('cascades cash through multiple priorities in order', () => {
+  it('cascades external deployable cash through multiple priorities in order', () => {
     const result = allocateFinancialRecommendations({
       snapshot: buildSnapshot({
         liquidCash: 200,
@@ -302,6 +302,95 @@ describe('allocateFinancialRecommendations', () => {
     expect(result.recommendations).toEqual([
       expect.objectContaining({
         action: 'UNALLOCATED',
+        amount: 50,
+      }),
+    ]);
+  });
+
+  it('caps goal funding at the remaining target when target metadata is available', () => {
+    const result = allocateFinancialRecommendations({
+      snapshot: buildSnapshot({
+        goals: [
+          {
+            id: 'goal-1',
+            name: 'Trip',
+            targetAmount: 1_000,
+            currentAmount: 950,
+            requiredContributionAmount: 200,
+          },
+        ],
+      }),
+      policy: buildPolicy({
+        targetMonthlyInvestingAmount: 0,
+      }),
+      deployableAmount: 200,
+    });
+
+    expect(result.recommendations).toEqual([
+      expect.objectContaining({
+        action: 'FUND_GOAL',
+        amount: 50,
+        targetId: 'goal-1',
+      }),
+      expect.objectContaining({
+        action: 'UNALLOCATED',
+        amount: 150,
+      }),
+    ]);
+  });
+
+  it('does not allocate to an already complete goal when target metadata is available', () => {
+    const result = allocateFinancialRecommendations({
+      snapshot: buildSnapshot({
+        goals: [
+          {
+            id: 'goal-1',
+            name: 'Trip',
+            targetAmount: 1_000,
+            currentAmount: 1_000,
+            requiredContributionAmount: 200,
+          },
+        ],
+      }),
+      policy: buildPolicy({
+        targetMonthlyInvestingAmount: 0,
+      }),
+      deployableAmount: 200,
+    });
+
+    expect(
+      result.recommendations.some(
+        recommendation =>
+          recommendation.action === 'FUND_GOAL' &&
+          recommendation.targetId === 'goal-1',
+      ),
+    ).toBe(false);
+    expect(result.recommendations).toEqual([
+      expect.objectContaining({
+        action: 'UNALLOCATED',
+        amount: 200,
+      }),
+    ]);
+  });
+
+  it('treats deployableAmount as cash outside snapshot.liquidCash for near-term coverage', () => {
+    const result = allocateFinancialRecommendations({
+      snapshot: buildSnapshot({
+        liquidCash: 100,
+        checkingBalance: 100,
+        nearTermRequiredCash: 150,
+      }),
+      policy: buildPolicy({
+        minimumCheckingBuffer: 0,
+        emergencyFundTargetMonths: 0,
+        targetMonthlyInvestingAmount: 0,
+      }),
+      deployableAmount: 50,
+    });
+
+    expect(result.recommendations).toEqual([
+      expect.objectContaining({
+        action: 'RESERVE_NEAR_TERM_CASH',
         amount: 50,
       }),
     ]);

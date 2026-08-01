@@ -7,6 +7,7 @@ import type {
   AllocationAction,
   AllocationReasonCode,
   AllocationRecommendation,
+  AllocationRequest,
   AllocationResult,
   DebtPosition,
   FinancialPolicy,
@@ -32,6 +33,19 @@ function sortHighInterestDebts(
 
 function createGoalWarning(goal: GoalPosition) {
   return `Goal "${goal.name}" (${goal.id}) is missing required contribution metadata and was skipped.`;
+}
+
+function getGoalAllocationNeed(goal: GoalPosition) {
+  if (goal.requiredContributionAmount == null) {
+    return null;
+  }
+
+  if (goal.targetAmount != null && goal.currentAmount != null) {
+    const remainingTarget = Math.max(0, goal.targetAmount - goal.currentAmount);
+    return Math.min(goal.requiredContributionAmount, remainingTarget);
+  }
+
+  return goal.requiredContributionAmount;
 }
 
 function createRecommendation({
@@ -66,11 +80,7 @@ export function allocateFinancialRecommendations({
   snapshot,
   policy,
   deployableAmount,
-}: {
-  snapshot: FinancialSnapshot;
-  policy: FinancialPolicy;
-  deployableAmount: number;
-}): AllocationResult {
+}: AllocationRequest): AllocationResult {
   validateFinancialSnapshot(snapshot);
   validateFinancialPolicy(policy);
   validateDeployableAmount(deployableAmount);
@@ -175,7 +185,9 @@ export function allocateFinancialRecommendations({
   });
 
   for (const goal of snapshot.goals) {
-    if (goal.requiredContributionAmount == null) {
+    const goalAllocationNeed = getGoalAllocationNeed(goal);
+
+    if (goalAllocationNeed == null) {
       warnings.push(createGoalWarning(goal));
       continue;
     }
@@ -184,10 +196,12 @@ export function allocateFinancialRecommendations({
       action: 'FUND_GOAL',
       reasonCode: 'GOAL_REQUIRED_CONTRIBUTION_SHORTFALL',
       priority: 5,
-      need: goal.requiredContributionAmount,
+      need: goalAllocationNeed,
       targetId: goal.id,
       explanation: amount =>
-        `Fund ${amount} toward ${goal.name} because its required contribution shortfall is ${goal.requiredContributionAmount}.`,
+        goal.targetAmount != null && goal.currentAmount != null
+          ? `Fund ${amount} toward ${goal.name} because its required contribution shortfall is ${goal.requiredContributionAmount} and the remaining target is ${Math.max(0, goal.targetAmount - goal.currentAmount)}.`
+          : `Fund ${amount} toward ${goal.name} because its required contribution shortfall is ${goal.requiredContributionAmount}.`,
     });
   }
 

@@ -14,6 +14,10 @@ export type GoalPosition = {
 };
 
 export type FinancialSnapshot = {
+  /**
+   * Liquid cash already present in the snapshot before applying any
+   * deployableAmount passed to the allocator.
+   */
   liquidCash: number;
   checkingBalance: number;
   nearTermRequiredCash: number;
@@ -29,6 +33,17 @@ export type FinancialPolicy = {
   emergencyFundTargetMonths: number;
   highInterestDebtAprThresholdBasisPoints: number;
   targetMonthlyInvestingAmount: number;
+};
+
+export type AllocationRequest = {
+  snapshot: FinancialSnapshot;
+  policy: FinancialPolicy;
+  /**
+   * External or otherwise unallocated cash that is not already counted in
+   * snapshot.liquidCash. Adapters must not pass cash here if it is already
+   * included in the snapshot.
+   */
+  deployableAmount: number;
 };
 
 export type AllocationAction =
