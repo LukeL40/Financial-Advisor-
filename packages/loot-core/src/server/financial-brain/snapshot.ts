@@ -82,41 +82,28 @@ function assertSafeIntegerAmount(value: number, fieldName: string): number {
   return value;
 }
 
-function getAccountTypeFingerprint(account: {
-  name: string;
+function hasLiquidLikeStructuredMetadata(account: {
   type?: string | null;
   subtype?: string | null;
 }) {
-  return `${account.type ?? ''}|${account.subtype ?? ''}|${account.name}`.toLowerCase();
-}
-
-function hasCashLikeMetadata(account: {
-  name: string;
-  type?: string | null;
-  subtype?: string | null;
-}) {
-  const fingerprint = getAccountTypeFingerprint(account);
-  return /\b(checking|savings|cash|depository|current)\b/.test(fingerprint);
-}
-
-function hasCheckingLikeMetadata(account: {
-  name: string;
-  type?: string | null;
-  subtype?: string | null;
-}) {
-  const fingerprint = getAccountTypeFingerprint(account);
-  return /\b(checking|current)\b/.test(fingerprint);
-}
-
-function hasDebtLikeMetadata(account: {
-  name: string;
-  type?: string | null;
-  subtype?: string | null;
-}) {
-  const fingerprint = getAccountTypeFingerprint(account);
-  return /\b(credit|card|loan|mortgage|debt|line.?of.?credit|liability)\b/.test(
-    fingerprint,
+  const type = (account.type ?? '').toLowerCase();
+  const subtype = (account.subtype ?? '').toLowerCase();
+  return (
+    subtype === 'checking' ||
+    subtype === 'savings' ||
+    subtype === 'cash' ||
+    type === 'depository' ||
+    type === 'cash'
   );
+}
+
+function hasCheckingLikeStructuredMetadata(account: {
+  type?: string | null;
+  subtype?: string | null;
+}) {
+  const type = (account.type ?? '').toLowerCase();
+  const subtype = (account.subtype ?? '').toLowerCase();
+  return subtype === 'checking' || type === 'checking';
 }
 
 function dedupeIds(ids: string[] | undefined): string[] {
@@ -162,10 +149,6 @@ function sumAccountBalances(
       )
     );
   }, 0);
-}
-
-function monthBucket(date: string): string {
-  return date.slice(0, 7);
 }
 
 async function getScheduleOutflowByHorizon({
@@ -258,9 +241,12 @@ export async function buildFinancialSnapshot(
   const accountsById = new Map(
     accountsWithBalances.map(account => [account.id, account]),
   );
+  const eligibleAccountsById = new Map(
+    eligibleAccounts.map(account => [account.id, account]),
+  );
 
   const defaultCheckingIds = eligibleAccounts
-    .filter(hasCheckingLikeMetadata)
+    .filter(hasCheckingLikeStructuredMetadata)
     .map(account => account.id);
   const checkingAccountIds =
     config.checkingAccountIds == null
@@ -270,7 +256,7 @@ export async function buildFinancialSnapshot(
         );
 
   const defaultLiquidIds = eligibleAccounts
-    .filter(hasCashLikeMetadata)
+    .filter(hasLiquidLikeStructuredMetadata)
     .map(account => account.id);
   const liquidAccountIds =
     config.liquidAccountIds == null
@@ -329,11 +315,11 @@ export async function buildFinancialSnapshot(
     'emergencySavings',
   );
 
-  if ((config.emergencyFundAccountIds ?? []).length === 0) {
+  if (emergencyFundAccountIds.length === 0) {
     warnings.push({
       code: 'MISSING_EMERGENCY_FUND_MAPPING',
       message:
-        'Emergency savings mapping is missing; emergencySavings is set to 0 until emergencyFundAccountIds are configured.',
+        'Emergency savings mapping is missing or invalid; emergencySavings is set to 0 until emergencyFundAccountIds resolve to eligible accounts.',
     });
     missingMappings.push('emergencyFundAccountIds');
   }
@@ -343,13 +329,21 @@ export async function buildFinancialSnapshot(
     lookbackMonths,
   });
 
+  const categories = await db.getCategories();
+  const categoryIsIncomeById = new Map(
+    categories.map(category => [category.id, category.is_income === 1]),
+  );
+  const validCategoryIds = new Set(categories.map(category => category.id));
+
   let monthlyEssentialSpend = 0;
-  const essentialCategoryIds = dedupeIds(config.essentialCategoryIds);
+  const essentialCategoryIds = dedupeIds(config.essentialCategoryIds).filter(
+    categoryId => validCategoryIds.has(categoryId),
+  );
   if (essentialCategoryIds.length === 0) {
     warnings.push({
       code: 'MISSING_ESSENTIAL_CATEGORY_MAPPING',
       message:
-        'Essential spend mapping is missing; monthlyEssentialSpend is set to 0 until essentialCategoryIds are configured.',
+        'Essential spend mapping is missing or invalid; monthlyEssentialSpend is set to 0 until essentialCategoryIds resolve to existing categories.',
     });
     missingMappings.push('essentialCategoryIds');
   } else {
@@ -378,11 +372,6 @@ export async function buildFinancialSnapshot(
     monthlyEssentialSpend = Math.round(totalEssentialOutflow / monthCount);
   }
 
-  const categories = await db.getCategories();
-  const categoryIsIncomeById = new Map(
-    categories.map(category => [category.id, category.is_income === 1]),
-  );
-
   const { data: recentTransactions } = await aqlQuery(
     q('transactions')
       .filter({
@@ -395,7 +384,7 @@ export async function buildFinancialSnapshot(
 
   let totalIncome = 0;
   let totalExpense = 0;
-  const monthlyBuckets = new Set<string>();
+  let hasCategorizedIncomeOrExpenseHistory = false;
 
   for (const tx of recentTransactions as Array<{
     amount: number;
@@ -411,12 +400,11 @@ export async function buildFinancialSnapshot(
       continue;
     }
 
-    monthlyBuckets.add(monthBucket(tx.date));
-
     const amount = assertSafeIntegerAmount(
       tx.amount,
       'monthlyNetIncome.amount',
     );
+    hasCategorizedIncomeOrExpenseHistory = true;
 
     if (isIncomeCategory) {
       totalIncome += amount;
@@ -425,7 +413,7 @@ export async function buildFinancialSnapshot(
     }
   }
 
-  if (monthlyBuckets.size === 0) {
+  if (!hasCategorizedIncomeOrExpenseHistory) {
     warnings.push({
       code: 'INCOME_OR_EXPENSE_HISTORY_EMPTY',
       message:
@@ -434,15 +422,15 @@ export async function buildFinancialSnapshot(
     missingData.push('monthlyNetIncomeHistory');
   }
 
-  const monthlyNetIncome =
-    monthlyBuckets.size === 0
-      ? 0
-      : Math.round((totalIncome - totalExpense) / monthlyBuckets.size);
+  const monthlyNetIncome = !hasCategorizedIncomeOrExpenseHistory
+    ? 0
+    : Math.round((totalIncome - totalExpense) / monthCount);
 
   const debts = [] as FinancialSnapshot['debts'];
   const debtMappings = config.debtAccountMappings ?? {};
-  for (const account of eligibleAccounts) {
-    if (!hasDebtLikeMetadata(account)) {
+  for (const accountId of Object.keys(debtMappings)) {
+    const account = eligibleAccountsById.get(accountId);
+    if (!account) {
       continue;
     }
 
@@ -457,25 +445,21 @@ export async function buildFinancialSnapshot(
     }
 
     const mapping = debtMappings[account.id];
-    if (!mapping) {
-      warnings.push({
-        code: 'MISSING_DEBT_APR_MAPPING',
-        message: `Debt account ${account.id} is missing APR mapping and was excluded from debts[].`,
-      });
-      missingMappings.push(`debtAccountMappings.${account.id}`);
-      continue;
-    }
-
-    assertSafeIntegerAmount(
+    const aprBasisPoints = assertSafeIntegerAmount(
       mapping.aprBasisPoints,
       `debt(${account.id}).aprBasisPoints`,
     );
+    if (aprBasisPoints < 0) {
+      throw new Error(
+        `debt(${account.id}).aprBasisPoints must be a non-negative safe integer`,
+      );
+    }
 
     debts.push({
       id: account.id,
       name: mapping.name ?? account.name,
       balance: normalizedDebtBalance,
-      aprBasisPoints: mapping.aprBasisPoints,
+      aprBasisPoints,
     });
   }
 
@@ -498,12 +482,12 @@ export async function buildFinancialSnapshot(
     provenance: {
       checkingBalance: {
         source: 'accounts',
-        rule: 'sum(balance_current) over configured/metadata-selected checking accounts',
+        rule: 'sum(balance_current) over configured or structured-metadata-selected checking accounts',
         accountIds: [...checkingAccountIds].sort(),
       },
       liquidCash: {
         source: 'accounts',
-        rule: 'sum(balance_current) over configured/metadata-selected liquid accounts',
+        rule: 'sum(balance_current) over configured or structured-metadata-selected liquid accounts',
         accountIds: [...liquidAccountIds].sort(),
       },
       nearTermRequiredCash: {
@@ -529,7 +513,7 @@ export async function buildFinancialSnapshot(
       },
       debts: {
         source: 'accounts',
-        rule: 'debt-like metadata account with negative balance plus explicit APR mapping',
+        rule: 'explicitly mapped debt account with negative balance plus explicit APR mapping',
         accountIds: debts.map(debt => debt.id).sort(),
       },
       goals: {

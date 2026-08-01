@@ -204,13 +204,6 @@ describe('buildFinancialSnapshot', () => {
       id: 'credit-card',
       name: 'Credit Card',
       amount: -12_345,
-      type: 'credit',
-    });
-    await insertAccountWithTransaction({
-      id: 'loan-no-apr',
-      name: 'Loan Without APR',
-      amount: -2_500,
-      type: 'loan',
     });
 
     const result = await buildFinancialSnapshot({
@@ -231,12 +224,35 @@ describe('buildFinancialSnapshot', () => {
         aprBasisPoints: 1_999,
       },
     ]);
+  });
+
+  it('does not classify checking or liquid accounts from ambiguous names alone', async () => {
+    await insertAccountWithTransaction({
+      id: 'vacation-savings-card',
+      name: 'Vacation Savings Card',
+      amount: 9_000,
+    });
+    await insertAccountWithTransaction({
+      id: 'loan-payment-checking',
+      name: 'Loan Payment Checking',
+      amount: 5_000,
+    });
+
+    const result = await buildFinancialSnapshot({
+      asOfDate: '2024-04-01',
+      lookbackMonths: 1,
+      emergencyFundAccountIds: ['vacation-savings-card'],
+      essentialCategoryIds: ['missing-category'],
+    });
+
+    expect(result.snapshot.checkingBalance).toBe(0);
+    expect(result.snapshot.liquidCash).toBe(0);
     expect(result.warnings).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ code: 'MISSING_DEBT_APR_MAPPING' }),
+        expect.objectContaining({ code: 'NO_ELIGIBLE_CHECKING_ACCOUNTS' }),
+        expect.objectContaining({ code: 'NO_ELIGIBLE_LIQUID_ACCOUNTS' }),
       ]),
     );
-    expect(result.missingMappings).toContain('debtAccountMappings.loan-no-apr');
   });
 
   it('does not fabricate emergency savings when mapping is missing', async () => {
@@ -252,6 +268,32 @@ describe('buildFinancialSnapshot', () => {
       checkingAccountIds: ['savings'],
       liquidAccountIds: ['savings'],
       lookbackMonths: 1,
+    });
+
+    expect(result.snapshot.emergencySavings).toBe(0);
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'MISSING_EMERGENCY_FUND_MAPPING' }),
+      ]),
+    );
+    expect(result.missingMappings).toContain('emergencyFundAccountIds');
+  });
+
+  it('marks emergency savings as missing when all configured account mappings are invalid', async () => {
+    await insertAccountWithTransaction({
+      id: 'checking',
+      name: 'Checking',
+      amount: 40_000,
+      type: 'checking',
+    });
+
+    const result = await buildFinancialSnapshot({
+      asOfDate: '2024-04-01',
+      checkingAccountIds: ['checking'],
+      liquidAccountIds: ['checking'],
+      emergencyFundAccountIds: ['not-a-real-account-id'],
+      lookbackMonths: 1,
+      essentialCategoryIds: ['missing-category'],
     });
 
     expect(result.snapshot.emergencySavings).toBe(0);
@@ -333,6 +375,32 @@ describe('buildFinancialSnapshot', () => {
     expect(result.missingMappings).toContain('essentialCategoryIds');
   });
 
+  it('marks essential spend as missing configuration when configured category mappings are all invalid', async () => {
+    await insertAccountWithTransaction({
+      id: 'checking',
+      name: 'Checking',
+      amount: 0,
+      type: 'checking',
+    });
+
+    const result = await buildFinancialSnapshot({
+      asOfDate: '2024-04-01',
+      checkingAccountIds: ['checking'],
+      liquidAccountIds: ['checking'],
+      emergencyFundAccountIds: ['checking'],
+      lookbackMonths: 1,
+      essentialCategoryIds: ['not-a-real-category-id'],
+    });
+
+    expect(result.snapshot.monthlyEssentialSpend).toBe(0);
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'MISSING_ESSENTIAL_CATEGORY_MAPPING' }),
+      ]),
+    );
+    expect(result.missingMappings).toContain('essentialCategoryIds');
+  });
+
   it('derives monthly net income from categorized income and expense history', async () => {
     const { salaryCategoryId, groceriesCategoryId } =
       await createCategoryFixture();
@@ -383,6 +451,66 @@ describe('buildFinancialSnapshot', () => {
     });
 
     expect(result.snapshot.monthlyNetIncome).toBe(6_000);
+  });
+
+  it('averages monthly net income across the full lookback window when activity is sparse', async () => {
+    const { salaryCategoryId, groceriesCategoryId } =
+      await createCategoryFixture();
+
+    await insertAccountWithTransaction({
+      id: 'checking',
+      name: 'Checking',
+      amount: 0,
+      type: 'checking',
+    });
+
+    await db.insertTransaction({
+      id: 'salary-january',
+      account: 'checking',
+      category: salaryCategoryId,
+      amount: 9_000,
+      date: '2024-01-10',
+    });
+    await db.insertTransaction({
+      id: 'expense-january',
+      account: 'checking',
+      category: groceriesCategoryId,
+      amount: -3_000,
+      date: '2024-01-12',
+    });
+
+    const result = await buildFinancialSnapshot({
+      asOfDate: '2024-03-31',
+      lookbackMonths: 3,
+      checkingAccountIds: ['checking'],
+      liquidAccountIds: ['checking'],
+      emergencyFundAccountIds: ['checking'],
+      essentialCategoryIds: [groceriesCategoryId],
+    });
+
+    expect(result.snapshot.monthlyNetIncome).toBe(2_000);
+  });
+
+  it('rejects negative debt APR mappings', async () => {
+    await insertAccountWithTransaction({
+      id: 'credit-card',
+      name: 'Credit Card',
+      amount: -12_345,
+    });
+
+    await expect(
+      buildFinancialSnapshot({
+        asOfDate: '2024-04-01',
+        lookbackMonths: 1,
+        debtAccountMappings: {
+          'credit-card': {
+            aprBasisPoints: -1,
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      'debt(credit-card).aprBasisPoints must be a non-negative safe integer',
+    );
   });
 
   it('derives near-term required cash from upcoming negative schedules', async () => {
