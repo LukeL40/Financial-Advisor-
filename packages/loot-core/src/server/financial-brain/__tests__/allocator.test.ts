@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { allocateFinancialRecommendations } from '../allocator';
-import type { FinancialPolicy, FinancialSnapshot } from '../types';
+import { allocateFinancialRecommendations } from '#server/financial-brain/allocator';
+import type {
+  FinancialPolicy,
+  FinancialSnapshot,
+} from '#server/financial-brain/types';
 
 function buildSnapshot(
   overrides: Partial<FinancialSnapshot> = {},
@@ -139,7 +142,9 @@ describe('allocateFinancialRecommendations', () => {
 
     expect(
       result.recommendations
-        .filter(recommendation => recommendation.action === 'PAY_HIGH_INTEREST_DEBT')
+        .filter(
+          recommendation => recommendation.action === 'PAY_HIGH_INTEREST_DEBT',
+        )
         .map(recommendation => recommendation.targetId),
     ).toEqual(['debt-2', 'debt-1']);
   });

@@ -28,7 +28,10 @@ function validateDebtPosition(debt: DebtPosition, index: number) {
 
 function validateGoalPosition(goal: GoalPosition, index: number) {
   if (goal.targetAmount != null) {
-    validateNonNegativeInteger(`goals[${index}].targetAmount`, goal.targetAmount);
+    validateNonNegativeInteger(
+      `goals[${index}].targetAmount`,
+      goal.targetAmount,
+    );
   }
 
   if (goal.currentAmount != null) {

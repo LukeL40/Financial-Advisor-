@@ -20,8 +20,7 @@ function sortHighInterestDebts(
 ) {
   return debts
     .filter(
-      debt =>
-        debt.balance > 0 && debt.aprBasisPoints >= thresholdBasisPoints,
+      debt => debt.balance > 0 && debt.aprBasisPoints >= thresholdBasisPoints,
     )
     .sort(
       (left, right) =>
